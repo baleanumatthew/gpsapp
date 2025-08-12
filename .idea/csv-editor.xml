@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CsvFileAttributes">
+    <option name="attributeMap">
+      <map>
+        <entry key="C:\Users\MaKro\AppData\Local\Google\AndroidStudio2024.3.2\device-explorer\samsung SM-G955W\_\data\data\com.example.gpsapp\files\gps_2025-07-27.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="C:\Users\MaKro\AppData\Local\Google\AndroidStudio2024.3.2\device-explorer\samsung SM-G955W\_\data\data\com.example.gpsapp\files\gps_2025-07-28.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
