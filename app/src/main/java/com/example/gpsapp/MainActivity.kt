@@ -30,6 +30,10 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.material3.OutlinedTextField
 
 class MainActivity : ComponentActivity() {
 
@@ -133,10 +137,48 @@ class MainActivity : ComponentActivity() {
                         Button(onClick = { exportCsvFile() }) {
                             Text("Export CSV")
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        var showManualOffset by remember { mutableStateOf(false) }
+
+                        OutlinedButton(
+                            onClick = { showManualOffset = true },
+                            enabled = gpsFix.value != null,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Manual Entry") }
+
+                        if (showManualOffset) {
+                            val liveAlt = gpsFix.value?.altitude ?: 0.0
+                            ManualOffsetDialog(
+                                liveAltitude = liveAlt,
+                                onDismiss = { showManualOffset = false },
+                                onSubmit = { computedAlt ->
+                                    val fix = gpsFix.value
+                                    if (fix == null) {
+                                        android.widget.Toast.makeText(this@MainActivity, "No live GPS fix", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        addManualFix(fix.latitude, fix.longitude, computedAlt) // writes CSV + refreshes table
+                                    }
+                                    showManualOffset = false
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+    
+    private fun addManualAltitude(alt: Double) {
+        val current = gpsFix.value
+        if (current == null) {
+            android.widget.Toast.makeText(this, "No live GPS fix yet", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Reuse your existing writer (if you have addManualFix(lat, lon, alt))
+        addManualFix(current.latitude, current.longitude, alt)
+        // If you don't have addManualFix(lat,lon,alt), inline the CSV write here
     }
 
     private fun startUsbPermissionFlow() {
@@ -282,6 +324,35 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent.createChooser(intent, "Export GPS CSV"))
     }
 
+    private fun addManualFix(lat: Double, lon: Double, alt: Double) {
+        val ts = System.currentTimeMillis()
+        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            .format(java.util.Date(ts))
+        val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+            .format(java.util.Date(ts))
+
+        val file = java.io.File(filesDir, "gps_$dateStr.csv")
+        val isNew = !file.exists()
+        if (isNew) {
+            file.appendText("timestamp,readable_time,latitude,longitude,altitude\n")
+        }
+
+        // Keep good precision when writing
+        val line = buildString {
+            append(ts).append(',')
+            append(timeStr).append(',')
+            append(String.format("%.8f", lat)).append(',')
+            append(String.format("%.8f", lon)).append(',')
+            append(String.format("%.4f", alt)).append('\n')
+        }
+        file.appendText(line)
+
+        // Refresh today's table
+        loadSessionsFromCsv()
+
+        android.widget.Toast.makeText(this, "Manual fix saved", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     override fun onDestroy() {
         unregisterReceiver(usbReceiver)
         gpsService.disconnect()
@@ -291,4 +362,72 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_USB_PERMISSION = "com.example.usbgpsreader.USB_PERMISSION"
     }
+}
+
+@Composable
+fun ManualOffsetDialog(
+    liveAltitude: Double,
+    onDismiss: () -> Unit,
+    onSubmit: (Double) -> Unit // receives computed (live + offset) altitude
+) {
+    var offsetText by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val previewAlt = offsetText
+        .trim()
+        .replace(',', '.')
+        .toDoubleOrNull()
+        ?.let { liveAltitude + it }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Manual Offset (meters)") },
+        text = {
+            Column {
+                Text("Live altitude: %.4f m".format(liveAltitude))
+                if (previewAlt != null) {
+                    Text("Result: %.4f m".format(previewAlt))
+                }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = offsetText,
+                    onValueChange = { offsetText = it },
+                    label = { Text("Offset (m)") },
+                    placeholder = { Text("e.g. -0.8") },
+                    // numeric keyboard only
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (error != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(error!!, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val off = parseOffsetMeters(offsetText)
+                if (off == null) {
+                    error = "Enter a numeric offset in meters (e.g. -0.8)."
+                } else {
+                    error = null
+                    onSubmit(liveAltitude + off) // computed altitude
+                }
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+private fun parseOffsetMeters(input: String): Double? {
+    val s = input.trim().replace(',', '.')
+    return s.toDoubleOrNull()   // accepts numbers like -0.8, 0.25, 1, etc.
 }
