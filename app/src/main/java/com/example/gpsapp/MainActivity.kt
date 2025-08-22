@@ -1,5 +1,6 @@
 package com.example.gpsapp
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.*
 import android.hardware.usb.UsbDevice
@@ -21,6 +22,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import android.content.Intent
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.core.content.FileProvider
 import androidx.compose.material3.OutlinedTextField
@@ -33,7 +36,7 @@ class MainActivity : ComponentActivity() {
     private val gpsFix = mutableStateOf<GpsFix?>(null)
     private var requestedDeviceName: String? = null
     private var isRecording by mutableStateOf(false)
-    private var recordCountdown by mutableStateOf(0)
+    private var recordCountdown by mutableIntStateOf(0)
     private val recordedFixes = mutableListOf<GpsFix>()
     private val lastSavedFix = mutableStateOf<GpsFix?>(null)
     private val recordedSessions = mutableStateListOf<RecordedSession>()
@@ -52,6 +55,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
@@ -144,9 +148,8 @@ class MainActivity : ComponentActivity() {
                                 liveAltitude = liveAlt,
                                 onDismiss = { showManualOffset = false },
                                 onSubmit = { computedAlt ->
-                                    val fix = gpsFix.value
                                     if (fix == null) {
-                                        android.widget.Toast.makeText(this@MainActivity, "No live GPS fix", android.widget.Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "No live GPS fix", Toast.LENGTH_SHORT).show()
                                     } else {
                                         addManualFix(fix.latitude, fix.longitude, computedAlt) // writes CSV + refreshes table
                                     }
@@ -159,23 +162,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    
-    private fun addManualAltitude(alt: Double) {
-        val current = gpsFix.value
-        if (current == null) {
-            android.widget.Toast.makeText(this, "No live GPS fix yet", android.widget.Toast.LENGTH_SHORT).show()
-            return
-        }
-        // Reuse your existing writer (if you have addManualFix(lat, lon, alt))
-        addManualFix(current.latitude, current.longitude, alt)
-        // If you don't have addManualFix(lat,lon,alt), inline the CSV write here
-    }
 
     private fun startUsbPermissionFlow() {
         val deviceList = usbManager.deviceList
-        for (device in deviceList.values) {
-            val info = "Found: ${device.deviceName}, VID=${device.vendorId}, PID=${device.productId}"
-        }
 
         for (device in deviceList.values) {
             if (device.vendorId == 5446 && device.productId == 425) {
@@ -314,14 +303,15 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent.createChooser(intent, "Export GPS CSV"))
     }
 
+    @SuppressLint("DefaultLocale")
     private fun addManualFix(lat: Double, lon: Double, alt: Double) {
         val ts = System.currentTimeMillis()
-        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-            .format(java.util.Date(ts))
-        val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-            .format(java.util.Date(ts))
+        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            .format(Date(ts))
+        val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+            .format(Date(ts))
 
-        val file = java.io.File(filesDir, "gps_$dateStr.csv")
+        val file = File(filesDir, "gps_$dateStr.csv")
         val isNew = !file.exists()
         if (isNew) {
             file.appendText("timestamp,readable_time,latitude,longitude,altitude\n")
@@ -340,7 +330,7 @@ class MainActivity : ComponentActivity() {
         // Refresh today's table
         loadSessionsFromCsv()
 
-        android.widget.Toast.makeText(this, "Manual fix saved", android.widget.Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Manual fix saved", Toast.LENGTH_SHORT).show()
     }
 
     override fun onDestroy() {
