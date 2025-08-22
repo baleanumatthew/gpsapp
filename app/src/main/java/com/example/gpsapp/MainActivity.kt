@@ -17,22 +17,12 @@ import androidx.compose.ui.unit.dp
 import android.os.CountDownTimer
 import androidx.compose.foundation.lazy.items
 import java.io.File
-import java.util.*
-import com.example.gpsapp.filterOutliersMad
-import com.example.gpsapp.RecordedSession
-import android.os.Environment
-import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.app.Activity
 import android.content.Intent
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.OutlinedTextField
 
 class MainActivity : ComponentActivity() {
