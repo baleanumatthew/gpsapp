@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private val recordedFixes = mutableListOf<GpsFix>()
     private val lastSavedFix = mutableStateOf<GpsFix?>(null)
     private val recordedSessions = mutableStateListOf<RecordedSession>()
+    private val fixTypeLabel = mutableStateOf<String>("")
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -96,6 +97,11 @@ class MainActivity : ComponentActivity() {
                             Text("Latitude: %.8f".format(fix.latitude))
                             Text("Longitude: %.8f".format(fix.longitude))
                             Text("Altitude: %.3f m".format(fix.altitude))
+                            if (fixTypeLabel.value.isNotBlank()) {
+                                Text("Fix type: ${fixTypeLabel.value}")
+                            } else {
+                                Text("Fix type: —")
+                            }
                         } else {
                             Text("Waiting for GPS fix...")
                         }
@@ -103,25 +109,24 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(24.dp))
                         Text("Saved Sessions (Today):", style = MaterialTheme.typography.titleMedium)
 
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(Modifier.padding(bottom = 8.dp)) {
+                            Text("Time", Modifier.width(80.dp))
+                            Text("Lat", Modifier.width(115.dp))
+                            Text("Lon", Modifier.width(115.dp))
+                            Text("Alt", Modifier.width(80.dp))
+                        }
+
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 350.dp)
+                                .heightIn(max = 200.dp)
                         ) {
-                            item {
-                                Row(Modifier.padding(bottom = 8.dp)) {
-                                    Text("Time", Modifier.width(130.dp))
-                                    Text("Lat", Modifier.width(100.dp))
-                                    Text("Lon", Modifier.width(100.dp))
-                                    Text("Alt", Modifier.width(80.dp))
-                                }
-                            }
-
                             items(recordedSessions) { session ->
                                 Row(Modifier.padding(vertical = 2.dp)) {
-                                    Text(session.readableTime.takeLast(8), Modifier.width(100.dp))
-                                    Text("%.8f".format(session.latitude), Modifier.width(100.dp))
-                                    Text("%.8f".format(session.longitude), Modifier.width(100.dp))
+                                    Text(session.readableTime.takeLast(8), Modifier.width(80.dp))
+                                    Text("%.8f".format(session.latitude), Modifier.width(115.dp))
+                                    Text("%.8f".format(session.longitude), Modifier.width(115.dp))
                                     Text("%.3f".format(session.altitude), Modifier.width(80.dp))
                                 }
                             }
@@ -186,6 +191,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun parseGgaFixTypeLabel(sentence: String): String? {
+        if (!sentence.startsWith("\$GPGGA") && !sentence.startsWith("\$GNGGA")) return null
+        val parts = sentence.split(",")
+        if (parts.size < 7) return null
+        val code = parts[6].toIntOrNull() ?: return null
+        return when (code) {
+            0 -> "Invalid"
+            1 -> "SPS (GPS)"
+            2 -> "DGPS"
+            3 -> "PPS"
+            4 -> "RTK Fixed"
+            5 -> "RTK Float"
+            6 -> "Dead Reckoning"
+            7 -> "Manual"
+            8 -> "Simulation"
+            else -> "Unknown"
+        }
+    }
+
     private fun connectToGps() {
 
         gpsService.connectToGps { line ->
@@ -199,6 +223,11 @@ class MainActivity : ComponentActivity() {
                 if (isRecording) {
                     recordedFixes.add(fix)
                 }
+            }
+
+            val ft = parseGgaFixTypeLabel(trimmed)
+            if (ft != null) {
+                fixTypeLabel.value = ft
             }
         }
     }
@@ -342,6 +371,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_USB_PERMISSION = "com.example.usbgpsreader.USB_PERMISSION"
     }
+
+
 }
 
 @Composable
@@ -411,3 +442,4 @@ private fun parseOffsetMeters(input: String): Double? {
     val s = input.trim().replace(',', '.')
     return s.toDoubleOrNull()   // accepts numbers like -0.8, 0.25, 1, etc.
 }
+
